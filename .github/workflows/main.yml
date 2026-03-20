@@ -1,0 +1,61 @@
+name: 출퇴근 자동화
+
+on:
+  # ── 수동 버튼 클릭 ──────────────────────────────────────
+  workflow_dispatch:
+    inputs:
+      action:
+        description: '출근 / 퇴근'
+        required: true
+        type: choice
+        options:
+          - checkin
+          - checkout
+
+  # ── 자동 스케줄 (KST 기준) ─────────────────────────────
+  schedule:
+    - cron: '30 23 * * 0-4'   # 월~금 08:30 KST (UTC 전날 23:30)
+    - cron: '30 8 * * 1-5'    # 월~금 17:30 KST (UTC 08:30)
+
+jobs:
+  attendance:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Chrome 설치
+        uses: browser-actions/setup-chrome@v1
+
+      - name: 패키지 설치
+        run: pip install selenium webdriver-manager
+
+      # ── 수동 실행 ────────────────────────────────────────
+      - name: 수동 출퇴근 처리
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          ATTEND_ID: ${{ secrets.ATTEND_ID }}
+          ATTEND_PW: ${{ secrets.ATTEND_PW }}
+        run: python attendance.py ${{ inputs.action }}
+
+      # ── 자동 출근 (08:30 KST) ────────────────────────────
+      - name: 자동 출근
+        if: github.event_name == 'schedule' && github.event.schedule == '30 23 * * 0-4'
+        env:
+          ATTEND_ID: ${{ secrets.ATTEND_ID }}
+          ATTEND_PW: ${{ secrets.ATTEND_PW }}
+        run: python attendance.py checkin
+
+      # ── 자동 퇴근 (17:30 KST) ────────────────────────────
+      - name: 자동 퇴근
+        if: github.event_name == 'schedule' && github.event.schedule == '30 8 * * 1-5'
+        env:
+          ATTEND_ID: ${{ secrets.ATTEND_ID }}
+          ATTEND_PW: ${{ secrets.ATTEND_PW }}
+        run: python attendance.py checkout
